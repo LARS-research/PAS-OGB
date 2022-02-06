@@ -13,20 +13,18 @@ scikit-learn==0.24.2 ogb>=1.3.2 deep_gcns_torch LibAUC
 
 |  Dataset   | Method  | Test AUC   | Validation AUC  |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |
-| ogbg-molhiv  | PAS | 0.8221 $\pm$ 0.0021  | 单元格 |单元格 |
-| 单元格  | 单元格 | 单元格  | 单元格 |单元格 |
+| ogbg-molhiv  | PAS | 0.8221 ± 0.0017  | 0.8178 ± 0.0031 | RTX3090 |
+| ogbg-molhiv  | PAS+HIG | 0.8416 ± 0.0019  | 0.8186 ± 0.0039 |RTX3090 |
 
-
-|  Dataset   |  Method | |Test AUROC| |Validation AUROC| |Hardware|
-|  ----  | ---- |  ----  | ----  |  ----  |
-
-
-
-| ogbg-molhiv  | PAS | 
-| 单元格  | 单元格 |
 ### ogbg-molpcba dataset
-|  表头   | 表头  | 表头   | 表头  |表头  |
+
+|  Dataset   | Method  | Test AP   | Validation AP  |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |
-| 单元格  | 单元格 | 单元格  | 单元格 |单元格 |
-| 单元格  | 单元格 | 单元格  | 单元格 |单元格 |
+| ogbg-molhiv  | PAS+HIG | 0.3012 ± 0.0039  | 0.3151 ± 0.0047 | RTX3090 |
+
 ### ogbg-molppa dataset
+
+
+|  Dataset   | Method  | Test ACC   | Validation ACC  |Hardware  |
+|  ----  | ----  | ----  | ----  |----  |
+| ogbg-ppa  | PAS | 0.7828 ± 0.0024  | 0.7523 ± 0.0028 | RTX3090 |
