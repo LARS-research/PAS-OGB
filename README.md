@@ -58,7 +58,7 @@ python python -u finetune_FP.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.
 4. Finetune the pretrain model using NodeDrop Augmentation.
 ```
 python python -u finetune_Drop.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.01 
---batch_size 256 --gamma 500 --epochs 10 --hidden_size 512 
+--batch_size 256 --gamma 500 --epochs 9 --hidden_size 512 
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
 ### Training Process for ogbg-molpcba
