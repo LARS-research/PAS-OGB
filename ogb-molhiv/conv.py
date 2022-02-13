@@ -14,8 +14,8 @@ from inits import glorot, zeros, reset
 from torch_geometric.typing import (OptPairTensor, Adj, Size, NoneType,
                                     OptTensor)
 from torch_sparse import SparseTensor, set_diag, matmul
-from DeeperGCN_with_HIG.gcn_lib.sparse.torch_message import GenMessagePassing, MsgNorm
-from DeeperGCN_with_HIG.gcn_lib.sparse.torch_nn import MLP, act_layer, norm_layer, BondEncoder
+from DeeperGCN.sparse.torch_message import GenMessagePassing, MsgNorm
+from DeeperGCN.gcn_lib.sparse.torch_nn import MLP, act_layer, norm_layer, BondEncoder
 from torch.nn import ModuleList
 import math
 import pdb
