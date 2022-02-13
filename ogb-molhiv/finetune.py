@@ -6,7 +6,7 @@ import json
 import pickle
 import logging
 import numpy as np
-from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 
 import hyperopt
 from hyperopt import fmin, tpe, hp, Trials, partial, STATUS_OK
@@ -19,27 +19,25 @@ import statistics
 from libauc.losses import AUCMLoss
 from libauc.optimizers import PESG
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
-from model_dropnode import NetworkGNN as Network
+from model import NetworkGNN as Network
 from DeeperGCN_with_HIG.utils.ckpt_util import save_ckpt
-from thop import profile
 
 graph_classification_dataset=['DD', 'MUTAG', 'PROTEINS', 'NCI1', 'NCI109','IMDB-BINARY', 'REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI','COLORS-3', 'COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba']
 node_classification_dataset = ['Cora', 'CiteSeer', 'PubMed', 'Amazon_Computers', 'Coauthor_CS', 'Coauthor_Physics', 'Amazon_Photo']
 
 def get_args():
     parser = argparse.ArgumentParser("sane")
-    parser.add_argument('--gpu', type=int, default=7, help='gpu device id')
-    parser.add_argument('--checkpoint_path', type=str, default="./model_0206_gamma_500/")
+    parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
     parser.add_argument('--num_workers', type=int, default=8,
                         help='number of workers (default: 0)')
     parser.add_argument('--pretrained', action='store_true', default=False)
     parser.add_argument('--dataset', type=str, default="ogbg-molhiv",
                         help='dataset name (default: ogbg-molhiv)')
-    parser.add_argument('--gamma', type=float, default=300)
+    parser.add_argument('--gamma', type=float, default=500)
     parser.add_argument('--margin', type=float, default=1.0)
     parser.add_argument('--loss', type=str, default='auroc', help='')
     parser.add_argument('--data', type=str, default='ogbg-molhiv', help='location of the data corpus')
-    parser.add_argument('--model_save_path', type=str, default='model_drop',
+    parser.add_argument('--model_save_path', type=str, default='model_0206_gamma_500',
                         help='the directory used to save models')
     parser.add_argument('--add_virtual_node', action='store_true')
     parser.add_argument('--arch_filename', type=str, default='', help='given the location of searched res')
@@ -58,22 +56,21 @@ def get_args():
     parser.add_argument('--activation', type=str, default='relu')
     parser.add_argument('--optimizer', type=str, default='pesg', help='')
     parser.add_argument('--weight_decay', type=float, default=1e-5)
-    parser.add_argument('--lr', type=float, default=0.01,
+    parser.add_argument('--lr', type=float, default=0.1,
                         help='learning rate set for optimizer.')
     parser.add_argument('--hidden_size', type=int, default=256,
                         help='the dimension of embeddings of nodes and edges')
-
     parser.add_argument('--batch_size', type=int, default=512, help='batch size of data.')
     parser.add_argument('--model', type=str, default='SANE')
-    parser.add_argument('--dropout', type=float, default=0)
+    parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--is_mlp', action='store_true', default=False, help='is_mlp')
     parser.add_argument('--ft_weight_decay', action='store_true', default=False, help='with weight decay in finetune stage.')
     parser.add_argument('--ft_dropout', action='store_true', default=False, help='with dropout in finetune stage')
     parser.add_argument('--ft_mode', type=str, default='811', choices=['811', '622', '10fold'], help='data split function.')
     parser.add_argument('--hyper_epoch', type=int, default=1, help='hyper epoch in hyperopt.')
-    parser.add_argument('--epochs', type=int, default=100, help='training epochs for each model')
-    parser.add_argument('--cos_lr',  action='store_true', default=False,  help='use cos lr.')
-    parser.add_argument('--lr_min',  type=float, default=0.0,  help='use cos lr.')
+    parser.add_argument('--epochs', type=int, default=300, help='training epochs for each model')
+    parser.add_argument('--cos_lr',  action='store_true', default=True,  help='use cos lr.')
+    parser.add_argument('--lr_min',  type=float, default=0.005,  help='use cos lr.')
     parser.add_argument('--show_info',  action='store_true', default=True,  help='print training info in each epoch')
     parser.add_argument('--withoutjk', action='store_true', default=False, help='remove la aggregtor')
     parser.add_argument('--search_act', action='store_true', default=False, help='search act in supernet.')
@@ -112,9 +109,10 @@ def set_all_seeds(SEED):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-def train(model, device, loader, optimizer, task_type, grad_clip=0.):
+def train(model, device, loader, optimizer, task_type, scheduler, grad_clip=0.):
     loss_list = []
     model.train()
+    iters = len(loader)
 
     for step, batch in enumerate(loader):
         batch = batch.to(device)
@@ -122,13 +120,12 @@ def train(model, device, loader, optimizer, task_type, grad_clip=0.):
         if batch.x.shape[0] == 1 or batch.batch[-1] == 0:
             pass
         else:
-            # print(model.device)
-            # print(batch.device)
             optimizer.zero_grad()
             pred = model(batch)
-            # pred = torch.sigmoid(pred)
-            is_labeled = batch.y[:,0] == batch.y[:,0]
-            loss = aucm_criterion(pred.to(torch.float32)[is_labeled].reshape(-1, 1), batch.y[:,0:1].to(torch.float32)[is_labeled].reshape(-1, 1))
+            pred = torch.sigmoid(pred)
+            is_labeled = batch.y == batch.y
+            loss = aucm_criterion(pred.to(torch.float32)[is_labeled].reshape(-1, 1),
+                                  batch.y.to(torch.float32)[is_labeled].reshape(-1, 1))
             loss.backward()
 
             if grad_clip > 0:
@@ -137,10 +134,13 @@ def train(model, device, loader, optimizer, task_type, grad_clip=0.):
                     grad_clip)
 
             optimizer.step()
+            if args.cos_lr:
+                pass
+                #cos_lr_warmrestarts
+                # scheduler.step(args.epochs + step / iters)
 
             loss_list.append(loss.item())
     return statistics.mean(loss_list)
-
 
 @torch.no_grad()
 def eval(model, device, loader, evaluator):
@@ -155,7 +155,7 @@ def eval(model, device, loader, evaluator):
             pass
         else:
             pred = model(batch)
-            # pred = torch.sigmoid(pred)
+            pred = torch.sigmoid(pred)
             y_true.append(batch.y[:,0:1].view(pred.shape).detach().cpu()) # remove random forest pred
             y_pred.append(pred.detach().cpu())
 
@@ -169,20 +169,9 @@ def eval(model, device, loader, evaluator):
 
 def main():
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    torch.cuda.set_device(args.gpu)
-
     sub_dir = 'BS_{}-NF_{}'.format(args.batch_size, args.feature)
     set_all_seeds(args.seed)
     dataset = PygGraphPropPredDataset(name=args.dataset)
-
-    # Load RF predictions
-    # npy = os.listdir('rf_preds')[args.seed]
-    # rf_pred = np.load(os.path.join('rf_preds', npy))
-    npy = 'rf_preds/rf_pred_auc_0.8324_0.8310_RS_5.npy'
-    rf_pred = np.load(npy)
-    print(npy)
-    dataset.data.y = torch.cat((dataset.data.y, torch.from_numpy(rf_pred)), 1)
 
     args.num_tasks = dataset.num_tasks
     # logging.info('%s' % args)
@@ -207,7 +196,7 @@ def main():
                              num_workers=args.num_workers)
 
     set_all_seeds(args.seed)
-    criterion = aucm_criterion.cuda()
+    aucm_criterion.to(device)
     lines = open(args.arch_filename, 'r').readlines()
     suffix = args.arch_filename.split('_')[-1][:-4]
     arch_set = set()
@@ -239,24 +228,7 @@ def main():
                     num_layers=args.num_layers, in_dropout=args.dropout,
                     out_dropout=args.dropout,
                     act=args.activation, args=args, is_mlp=args.is_mlp)
-    num_params = sum(p.numel() for p in model.parameters())
-    print(f'#Params: {num_params}')
     model = model.to(device)
-    if True:
-        # checkpoint_path = './model_ckpt_seed2/'
-        checkpoint_path = args.checkpoint_path
-        best_pth = sorted(os.listdir(checkpoint_path))[-1]
-        # best_pth = 'BS_256-NF_full_valid_best_AUC-FP_E_48_R1.pth'
-        args.model_load_path = os.path.join(checkpoint_path, best_pth)
-        print(args.model_load_path)
-        trained_stat_dict = torch.load(args.model_load_path)['model_state_dict']
-        # trained_stat_dict.pop('graph_pred_linear.weight', None)
-        ##trained_stat_dict.pop('graph_pred_linear.bias', None)
-        model.load_state_dict(trained_stat_dict, strict=False)
-
-        # fr = open("./tuned_res/ogbg-molhiv_res_20220117-014247_res-20220111-161817-eps0.0-reg1e-05.pkl", 'rb')
-        # inf = pickle.load(fr)
-        # print(inf)
 
     optimizer = PESG(model,
                      a=aucm_criterion.a,
@@ -271,6 +243,15 @@ def main():
     args.imratio = float((train_loader.dataset.data.y[:, 0].sum() / train_loader.dataset.data.y[:, 0].shape[0]).numpy())
     aucm_criterion.p = args.imratio
     print(aucm_criterion.p)
+
+    # cos_lrscheduler
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs),
+    #                                                        eta_min=args.lr_min)
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+
+    # cos_lr_warmrestarts
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=20)
 
     # save
     datetime_now = '2022-01-17'
@@ -292,15 +273,19 @@ def main():
     start_time_local = time.time()
     for epoch in range(1, args.epochs + 1):
 
-        if epoch in [int(args.epochs * 0.33), int(args.epochs * 0.66)] and args.loss != 'ce':
-            optimizer.update_regularizer(decay_factor=5)
+        if epoch in [int(args.epochs * 0.33), int(args.epochs * 0.66)]:
+            if not args.cos_lr:
+                optimizer.update_regularizer(decay_factor=2)
 
-        epoch_loss = train(model, device, train_loader, optimizer, dataset.task_type, grad_clip=0.)
-        # epoch_loss = 1
+
+
+        epoch_loss = train(model, device, train_loader, optimizer, dataset.task_type, scheduler, grad_clip=0.)
+
+        if args.cos_lr:
+            scheduler.step()
 
         # logging.info('Evaluating...')
         train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
-        # train_result = 0.99
         valid_result = eval(model, device, valid_loader, evaluator)[dataset.eval_metric]
         test_result = eval(model, device, test_loader, evaluator)[dataset.eval_metric]
 
@@ -312,7 +297,7 @@ def main():
         if train_result > results['highest_train']:
             results['highest_train'] = train_result
 
-        if valid_result > results['highest_valid']:
+        if valid_result > results['highest_valid'] and epoch > 200:
             results['highest_valid'] = valid_result
             results['final_train'] = train_result
             results['final_test'] = test_result
@@ -335,7 +320,5 @@ if __name__ == "__main__":
     torch.cuda.set_device(args.gpu)
     cls_criterion = torch.nn.BCEWithLogitsLoss()
     reg_criterion = torch.nn.MSELoss()
-
-    # https://github.com/Optimization-AI/LibAUC
     aucm_criterion = AUCMLoss().to(device)
     main()

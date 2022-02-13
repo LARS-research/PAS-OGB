@@ -28,7 +28,7 @@ node_classification_dataset = ['Cora', 'CiteSeer', 'PubMed', 'Amazon_Computers',
 def get_args():
     parser = argparse.ArgumentParser("sane")
     parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
-    parser.add_argument('--checkpoint_path', type=str, default="./model_pas_act/")
+    parser.add_argument('--checkpoint_path', type=str, default="./model_0206_gamma_500/")
     parser.add_argument('--num_workers', type=int, default=8,
                         help='number of workers (default: 0)')
     parser.add_argument('--pretrained', action='store_true', default=False)
@@ -38,7 +38,7 @@ def get_args():
     parser.add_argument('--margin', type=float, default=1.0)
     parser.add_argument('--loss', type=str, default='auroc', help='')
     parser.add_argument('--data', type=str, default='ogbg-molhiv', help='location of the data corpus')
-    parser.add_argument('--model_save_path', type=str, default='model_fp',
+    parser.add_argument('--model_save_path', type=str, default='model_0213_500_FP',
                         help='the directory used to save models')
     parser.add_argument('--add_virtual_node', action='store_true')
     parser.add_argument('--arch_filename', type=str, default='', help='given the location of searched res')
@@ -125,6 +125,7 @@ def train(model, device, loader, optimizer, task_type, grad_clip=0.):
             # print(batch.device)
             optimizer.zero_grad()
             pred = model(batch)
+            # pred = torch.sigmoid(pred)
             is_labeled = batch.y[:,0] == batch.y[:,0]
             loss = aucm_criterion(pred.to(torch.float32)[is_labeled].reshape(-1, 1), batch.y[:,0:1].to(torch.float32)[is_labeled].reshape(-1, 1))
             loss.backward()
@@ -152,6 +153,7 @@ def eval(model, device, loader, evaluator):
             pass
         else:
             pred = model(batch)
+            # pred = torch.sigmoid(pred)
             y_true.append(batch.y[:,0:1].view(pred.shape).detach().cpu()) # remove random forest pred
             y_pred.append(pred.detach().cpu())
 
@@ -175,6 +177,12 @@ def main():
     # Load RF predictions
     # npy = os.listdir('rf_preds')[args.seed]
     # rf_pred = np.load(os.path.join('rf_preds', npy))
+    # npy = 'rf_preds/rf_pred_auc_0.8302_0.8230_RS_1.npy'
+    # npy = 'rf_preds/rf_pred_auc_0.8254_0.8198.npy'
+    # rf_pred = np.load(npy)
+    # print(npy)
+    # dataset.data.y = torch.cat((dataset.data.y, torch.from_numpy(rf_pred)), 1)
+
     npy = 'rf_preds/rf_pred_auc_0.8324_0.8310_RS_5.npy'
     rf_pred = np.load(npy)
     print(npy)
@@ -236,10 +244,12 @@ def main():
                     out_dropout=args.dropout,
                     act=args.activation, args=args, is_mlp=args.is_mlp)
     model = model.to(device)
+
     if True:
         # checkpoint_path = './model_ckpt_seed2/'
         checkpoint_path = args.checkpoint_path
         best_pth = sorted(os.listdir(checkpoint_path))[-1]
+        # best_pth = 'BS_256-NF_full_valid_best_AUC-FP_E_290_R0.pth'
         args.model_load_path = os.path.join(checkpoint_path, best_pth)
         print(args.model_load_path)
         trained_stat_dict = torch.load(args.model_load_path)['model_state_dict']
@@ -289,6 +299,7 @@ def main():
             optimizer.update_regularizer(decay_factor=5)
 
         epoch_loss = train(model, device, train_loader, optimizer, dataset.task_type, grad_clip=0.)
+        # epoch_loss = 1
 
         # logging.info('Evaluating...')
         train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
