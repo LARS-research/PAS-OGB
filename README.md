@@ -15,13 +15,13 @@ scikit-learn==0.24.2 ogb>=1.3.2 deep_gcns_torch LibAUC
 |  ----  | ----  | ----  | ----  |----  |
 | ogbg-molhiv  | PAS | 0.8221 ± 0.0017  | 0.8178 ± 0.0031 | RTX3090 |
 | ogbg-molhiv  | PAS+FingerPrint | 0.8364 ± 0.0015  | 0.8276 ± 0.0018 | RTX3090 |
-| ogbg-molhiv  | PAS+FingerPrint+HIG | 0.8416 ± 0.0019  | 0.8186 ± 0.0039 |RTX3090 |
+| ogbg-molhiv  | PAS+FingerPrint+DropNode | 0.8410 ± 0.0029  | 0.8286 ± 0.0039 |RTX3090 |
 
 ### ogbg-molpcba dataset
 
 |  Dataset   | Method  | Test AP   | Validation AP  |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |
-| ogbg-molhiv  | PAS+HIG | 0.3012 ± 0.0039  | 0.3151 ± 0.0047 | RTX3090 |
+| ogbg-molpcba  | PAS+HIG | 0.3012 ± 0.0039  | 0.3151 ± 0.0047 | RTX3090 |
 
 ### ogbg-molppa dataset
 
@@ -52,13 +52,13 @@ python python -u finetune.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.1
 If you want to use the model framework you searched for, please enter your model address after ```--arch_filename```
 ```
 python python -u finetune_FP.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.01 
---batch_size 256 --gamma 300 --epochs 100 --hidden_size 512 
+--batch_size 256 --gamma 500 --epochs 100 --hidden_size 512 
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
 4. Finetune the pretrain model using NodeDrop Augmentation.
 ```
-python python -u finetune_Drop.py --data ogbg-molhiv --gpu 4 --dropout 0.2 --lr 0.01 
---batch_size 256 --gamma 300 --epochs 100 --hidden_size 512 
+python python -u finetune_Drop.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.01 
+--batch_size 256 --gamma 500 --epochs 10 --hidden_size 512 
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
 ### Training Process for ogbg-molpcba
