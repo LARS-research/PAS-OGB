@@ -11,7 +11,7 @@ scikit-learn==0.24.2 ogb>=1.3.2 deep_gcns_torch LibAUC
 ## Results on OGB
 ### ogbg-molhiv dataset
 
-|  Dataset   | Method  | Test AUC   | Validation AUC  | #Parameters |Hardware  |
+|  Dataset   | Method  | Test AUC   | Valid AUC  | #Parameters |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |----  |
 | ogbg-molhiv  | PAS | 0.8221 ± 0.0017  | 0.8178 ± 0.0031 |26,706,952| RTX3090 |
 | ogbg-molhiv  | PAS+FingerPrint | 0.8364 ± 0.0015  | 0.8276 ± 0.0018 | 26,706,953| RTX3090 |
