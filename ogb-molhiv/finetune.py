@@ -11,16 +11,14 @@ from torch_geometric.loader import DataLoader
 import hyperopt
 from hyperopt import fmin, tpe, hp, Trials, partial, STATUS_OK
 import random
-from logging_util import init_logger
-from train4tune import main
-from test4tune import main as test_main
+
 import torch
 import statistics
 from libauc.losses import AUCMLoss
 from libauc.optimizers import PESG
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from model import NetworkGNN as Network
-from DeeperGCN_with_HIG.utils.ckpt_util import save_ckpt
+from DeeperGCN.utils.ckpt_util import save_ckpt
 
 graph_classification_dataset=['DD', 'MUTAG', 'PROTEINS', 'NCI1', 'NCI109','IMDB-BINARY', 'REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI','COLORS-3', 'COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba']
 node_classification_dataset = ['Cora', 'CiteSeer', 'PubMed', 'Amazon_Computers', 'Coauthor_CS', 'Coauthor_Physics', 'Amazon_Photo']

@@ -9,51 +9,9 @@ from ogb.graphproppred.mol_encoder import AtomEncoder, BondEncoder
 from torch.nn import BatchNorm1d
 from torch_geometric.utils import add_self_loops, remove_self_loops, remove_isolated_nodes, degree
 import pyximport
-import numpy as np
-import numpy, scipy.sparse
-import scipy.sparse as sp
-from torch_geometric.utils import dropout_adj, subgraph
-from torch_geometric.utils.num_nodes import maybe_num_nodes
-from torch_geometric.utils import dropout_adj
 
 
 # import algos
-
-def get_adj_matrix(edge_index_fea, N):
-    adj = torch.zeros([N, N])
-    adj[edge_index_fea[0, :], edge_index_fea[1, :]] = 1
-    Asp = scipy.sparse.csr_matrix(adj)
-    Asp = Asp + Asp.T.multiply(Asp.T > Asp) - Asp.multiply(Asp.T > Asp)
-    Asp = Asp + sp.eye(Asp.shape[0])
-
-    D1_ = np.array(Asp.sum(axis=1))**(-0.5)
-    D2_ = np.array(Asp.sum(axis=0))**(-0.5)
-    D1_ = sp.diags(D1_[:,0], format='csr')
-    D2_ = sp.diags(D2_[0,:], format='csr')
-    A_ = Asp.dot(D1_)
-    A_ = D2_.dot(A_)
-    A_ = sparse_mx_to_torch_sparse_tensor(A_)
-    return A_
-
-def sparse_mx_to_torch_sparse_tensor(sparse_mx):
-    sparse_mx = sparse_mx.tocoo().astype(np.float32)
-    indices = torch.from_numpy(np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
-    values = torch.from_numpy(sparse_mx.data)
-    shape = torch.Size(sparse_mx.shape)
-    return torch.sparse.FloatTensor(indices, values, shape)
-
-def propagate(feature, A, order):
-    x = feature
-    y = feature
-    for i in range(order):
-        # print('x')
-        # print(x)
-        x = torch.spmm(A, x).detach_()
-        # print(x)
-        y.add_(x)
-        # print(y)
-        # print(y.div_(order+1.0).detach_())
-    return y.div_(order+1.0).detach_()
 
 def act_map(act):
     if act == "linear":
@@ -76,27 +34,6 @@ def act_map(act):
         return torch.nn.PReLU
     else:
         raise Exception("wrong activate function")
-
-class DropNode(nn.Module):
-    """
-    DropNode: Sampling node using a uniform distribution.
-    """
-
-    def __init__(self, drop_rate):
-        super(DropNode, self).__init__()
-        self.drop_rate = drop_rate
-
-    def forward(self, edge_index, edge_attr=None, edge_weight=None, num_nodes=None):
-        if not self.training:
-            return edge_index, edge_attr
-
-        num_nodes = maybe_num_nodes(edge_index, num_nodes)
-        nodes = torch.arange(num_nodes, dtype=torch.int64)
-        mask = torch.full_like(nodes, 1 - self.drop_rate, dtype=torch.float32)
-        mask = torch.bernoulli(mask).to(torch.bool)
-        subnodes = nodes[mask]
-
-        return subgraph(subnodes, edge_index, edge_attr=edge_attr, num_nodes=num_nodes)
 
 
 class NaOp(nn.Module):
@@ -201,7 +138,7 @@ class NetworkGNN(nn.Module):
         for sane, we dont need cell, since the DAG is the whole search space, and what we need to do is implement the DAG.
     '''
 
-    def __init__(self, genotype, criterion, in_dim, out_dim, hidden_size, num_layers=3, in_dropout=0, out_dropout=0.5,
+    def __init__(self, genotype, criterion, in_dim, out_dim, hidden_size, num_layers=3, in_dropout=0.2, out_dropout=0.5,
                  act='elu', args=None, is_mlp=False, num_nodes=0):
         super(NetworkGNN, self).__init__()
         hidden_size = hidden_size
@@ -219,7 +156,6 @@ class NetworkGNN(nn.Module):
         self.dropout = in_dropout
         self._criterion = criterion
         self.beta = torch.nn.Parameter(torch.Tensor([0.5]), requires_grad=True)
-        self.dropnode = DropNode(drop_rate=0.1)
         ops = genotype.split('||')
         # self.in_degree_encoder = nn.Embedding(64, hidden_size, padding_idx=0)
         # self.out_degree_encoder = nn.Embedding(64, hidden_size, padding_idx=0)
@@ -407,41 +343,7 @@ class NetworkGNN(nn.Module):
     def forward(self, data, perturb=None):
         # data = self.preprocess_item(data)
         # degree = data.in_degree
-        edge_index, batch, edge_attr = data.edge_index, data.batch, data.edge_attr
-
-        # new_fea_list = []
-        # # for every graph
-        # for i in range(data.y.shape[0]):
-        #     # 每张图的所有节点特征进入atom_encoder
-        #     new_fea = self.atom_encoder(data[i].x)
-        #     # get edge_index
-        #     edge_index_fea = data[i].edge_index
-        #     # for adjacency matrix
-        #     N = new_fea.size(0)
-        #     drop_rate = 0.1
-        #
-        #     if self.training:
-        #         # 利用伯努利分布，得到随机率为dropout的节点Mask
-        #         drop_rates = torch.FloatTensor(np.ones(N) * drop_rate)
-        #         masks = torch.bernoulli(1. - drop_rates).unsqueeze(1)
-        #         # 利用mask，随机将一些节点feature置0
-        #         new_fea = masks.to(new_fea.device) * new_fea
-        #     else:
-        #         # 否则，直接让所有feature降低，为了保持图的能量一致
-        #         new_fea = new_fea * (1. - drop_rate)
-        #     ori_fea = new_fea
-        #     # 得到邻接矩阵,本质上是根据节点的度，设置ratio，比如节点度为3，每个邻居得到的信息的ratio就是0.33
-        #     adj = get_adj_matrix(edge_index_fea, N).to(edge_index.device)
-        #     order = 1
-        #     new_fea = propagate(new_fea, adj, order)
-        #     new_fea_list.append(new_fea)
-        #
-        # x = torch.cat(new_fea_list, dim =0)
-
-        x = self.atom_encoder(data.x)
-        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=0.025, training = self.training)
-
-
+        x, edge_index, batch, edge_attr = data.x, data.edge_index, data.batch, data.edge_attr
         # in_degree, out_degree = data.in_degree.to(x.device), data.out_degree.to(x.device)
 
         ### virtual node embeddings for graphs
@@ -452,11 +354,15 @@ class NetworkGNN(nn.Module):
         # deg = degree(row, x.size(0), dtype=x.dtype) + 1
 
         # mgf_maccs_pred = data.y[:, 2]
+        if self.args.data == 'COLORS-3':
+            edge_index, _, mask = remove_isolated_nodes(edge_index, None, x.size(0))
+            x = x[mask]
+            batch = batch[mask]
 
-        # if self.args.data == 'ogbg-molhiv':
-        #     # flag
-        #     # x = self.atom_encoder(x) + perturb if perturb is not None else self.atom_encoder(x)
-        #     x = self.atom_encoder(x)
+        if self.args.data == 'ogbg-molhiv':
+            # flag
+            # x = self.atom_encoder(x) + perturb if perturb is not None else self.atom_encoder(x)
+            x = self.atom_encoder(x)
 
             # x = x + self.in_degree_encoder(deg) + self.out_degree_encoder(deg)
             # edge_attr = self.bond_encoder(edge_attr)
@@ -490,8 +396,8 @@ class NetworkGNN(nn.Module):
         x = self.gnn_layers[0](x, edge_index, edge_weights=None, edge_attr=edge_attr)
         for i in range(1, self.num_layers):
             x1 = self.batch_norms[i - 1](x)
-            x2 = F.relu(x1)
-            # x2 = self.prelu(x1)
+            # x2 = F.relu(x1)
+            x2 = self.prelu(x1)
             x2 = F.dropout(x2, p=self.dropout, training=self.training)
             # graph_representations[i] += virtualnode_embedding[batch]
             x = self.gnn_layers[i](x2, edge_index, edge_weights=None, edge_attr=edge_attr) + x
@@ -528,7 +434,7 @@ class NetworkGNN(nn.Module):
         # graph_representations.append(x)
         x = self.batch_norms[self.num_layers - 1](x)
         x = F.dropout(x, p=self.dropout, training=self.training)
-        # x = F.dropout(x, p=0.2, training=self.training)
+
         # if self.args.remove_jk or self.args.remove_readout:
         #   x = graph_representations[-1]
         # else:
