@@ -20,7 +20,7 @@ scikit-learn==0.24.2 ogb>=1.3.2 deep_gcns_torch LibAUC
 ### ogbg-molpcba dataset
 
 |  Dataset   | Method  | Test AP   | Validation AP   |Hardware  |
-|  ----  | ----  | ----  | ----  |----  |----  |
+|  ----  | ----  | ----  | ----  |----  |
 | ogbg-molpcba  | PAS+HIG | 0.3012 ± 0.0039  | 0.3151 ± 0.0047 | RTX3090 |
 
 ### ogbg-molppa dataset
