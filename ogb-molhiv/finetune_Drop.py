@@ -180,7 +180,7 @@ def main():
     # npy = os.listdir('rf_preds')[args.seed]
     # rf_pred = np.load(os.path.join('rf_preds', npy))
     npy = 'rf_preds/rf_pred_auc_0.8324_0.8310_RS_5.npy'
-    # npy = 'rf_preds/rf_pred_auc_0.8302_0.8230_RS_1.npy'
+
     rf_pred = np.load(npy)
     print(npy)
     dataset.data.y = torch.cat((dataset.data.y, torch.from_numpy(rf_pred)), 1)
@@ -245,10 +245,10 @@ def main():
     model = model.to(device)
     # print(model)
     if True:
-        # checkpoint_path = './DeeperGCN_with_HIG/saved_models/FT/'
+
         checkpoint_path = args.checkpoint_path
         best_pth = sorted(os.listdir(checkpoint_path))[-1]
-        # best_pth = 'BS_512-NF_full_valid_best_AUC_E_237_R0.pth'
+
         best_pth = 'BS_256-NF_full_valid_best_AUC-FP_E_341_R0.pth'
 
         args.model_load_path = os.path.join(checkpoint_path, best_pth)
@@ -305,9 +305,9 @@ def main():
 
         # logging.info('Evaluating...')
         train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
-        # train_result = 0.99
+
         valid_result = eval(model, device, valid_loader, evaluator)[dataset.eval_metric]
-        # valid_result = 0.5
+
         test_result = eval(model, device, test_loader, evaluator)[dataset.eval_metric]
 
         print("Epoch:%s, train_auc:%.4f, valid_auc:%.4f, test_auc:%.4f, lr:%.4f, time:%.4f" % (
