@@ -14,14 +14,14 @@ scikit-learn==0.24.2 ogb>=1.3.2 deep_gcns_torch LibAUC
 |  Dataset   | Method  | Test AUC   | Validation AUC  | #Parameters |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |----  |
 | ogbg-molhiv  | PAS | 0.8221 ± 0.0017  | 0.8178 ± 0.0031 |26,706,952| RTX3090 |
-| ogbg-molhiv  | PAS+FingerPrint | 0.8364 ± 0.0015  | 0.8276 ± 0.0018 | 26,706,953| RTX3090 |
-| ogbg-molhiv  | PAS+FingerPrint+DropNode | 0.8410 ± 0.0029  | 0.8286 ± 0.0039 | 26,706,953 |RTX3090 |
+| ogbg-molhiv  | PAS+FingerPrint | 0.8420 ± 0.0015  | 0.8238 ± 0.0028 | 26,706,953| RTX3090 |
+
 
 ### ogbg-molpcba dataset
 
 |  Dataset   | Method  | Test AP   | Validation AP   |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |
-| ogbg-molpcba  | PAS+HIG | 0.3012 ± 0.0039  | 0.3151 ± 0.0047 | RTX3090 |
+| ogbg-molpcba  | PAS | 0.3012 ± 0.0039  | 0.3151 ± 0.0047 | RTX3090 |
 
 ### ogbg-molppa dataset
 
@@ -51,16 +51,9 @@ python python -u finetune.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.1
 ```
 If you want to use the model framework you searched for, please enter your model address after ```--arch_filename```
 ```
-python python -u finetune_FP.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.01 
---batch_size 256 --gamma 500 --epochs 100 --hidden_size 512 
---arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
+python -u finetune_Drop.py --data ogbg-molhiv --gpu 3 --dropout 0.1 --lr 0.005 --batch_size 256 --gamma 100 --epochs 40 --hidden_size 512 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
-4. Finetune the pretrain model using NodeDrop Augmentation.
-```
-python python -u finetune_Drop.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.01 
---batch_size 256 --gamma 500 --epochs 9 --hidden_size 512 
---arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
-```
+
 ### Training Process for ogbg-molpcba
 
  1. Search Architecture
@@ -68,7 +61,7 @@ python python -u finetune_Drop.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 
 python pcba_search.py --gpu 0 --num_layers 14 --epochs 50 --data ogbg-molpcba
 --remove_pooling True
 ```
-2. Finetune the pretrain model using NodeDrop Augmentation.
+2. Finetune the model.
 
 ```
 python python -u pcba_finetune.py --data ogbg-molpcba --gpu 4 --dropout 0.2 --lr 0.1 
@@ -76,11 +69,7 @@ python python -u pcba_finetune.py --data ogbg-molpcba --gpu 4 --dropout 0.2 --lr
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
 
-```
-python python -u finetune_DP.py --data ogbg-molpcba --gpu 4 --dropout 0.2 --lr 0.01 
---batch_size 256 --gamma 500 --epochs 100 --hidden_size 1024 
---arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
-```
+
 ### Cite
 Please kindly cite our paper if you use this code:
 ```
