@@ -42,7 +42,7 @@ python hiv_train_search.py --gpu 0 --num_layers 14 --epochs 50 --data ogbg-molhi
 python extract_fingerprint.py
 python random_forest.py
 ```
-3. Finetune the model with FingerPrints Model.
+3. Finetune the model.
 
 ```
 python python -u finetune.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.1 
@@ -50,6 +50,7 @@ python python -u finetune.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.1
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
 If you want to use the model framework you searched for, please enter your model address after ```--arch_filename```
+4. Finetune the model with FingerPrints Model.
 ```
 python -u finetune_Drop.py --data ogbg-molhiv --gpu 3 --dropout 0.1 --lr 0.005 --batch_size 256 --gamma 100 --epochs 40 --hidden_size 512 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
