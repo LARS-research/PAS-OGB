@@ -19,7 +19,7 @@ import statistics
 from libauc.losses import AUCMLoss
 from libauc.optimizers import PESG
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
-from model_dropnode import NetworkGNN as Network
+from model_drop import NetworkGNN as Network
 from DeeperGCN_with_HIG.utils.ckpt_util import save_ckpt
 from thop import profile
 
@@ -180,6 +180,7 @@ def main():
     # npy = os.listdir('rf_preds')[args.seed]
     # rf_pred = np.load(os.path.join('rf_preds', npy))
     npy = 'rf_preds/rf_pred_auc_0.8324_0.8310_RS_5.npy'
+    # npy = 'rf_preds/rf_pred_auc_0.8302_0.8230_RS_1.npy'
     rf_pred = np.load(npy)
     print(npy)
     dataset.data.y = torch.cat((dataset.data.y, torch.from_numpy(rf_pred)), 1)
@@ -242,14 +243,17 @@ def main():
     num_params = sum(p.numel() for p in model.parameters())
     print(f'#Params: {num_params}')
     model = model.to(device)
+    # print(model)
     if True:
-        # checkpoint_path = './model_ckpt_seed2/'
+        # checkpoint_path = './DeeperGCN_with_HIG/saved_models/FT/'
         checkpoint_path = args.checkpoint_path
         best_pth = sorted(os.listdir(checkpoint_path))[-1]
-        # best_pth = 'BS_256-NF_full_valid_best_AUC-FP_E_48_R1.pth'
+        # best_pth = 'BS_512-NF_full_valid_best_AUC_E_237_R0.pth'
+        best_pth = 'BS_256-NF_full_valid_best_AUC-FP_E_341_R0.pth'
+
         args.model_load_path = os.path.join(checkpoint_path, best_pth)
         print(args.model_load_path)
-        trained_stat_dict = torch.load(args.model_load_path)['model_state_dict']
+        trained_stat_dict = torch.load(args.model_load_path, map_location=device)['model_state_dict']
         # trained_stat_dict.pop('graph_pred_linear.weight', None)
         ##trained_stat_dict.pop('graph_pred_linear.bias', None)
         model.load_state_dict(trained_stat_dict, strict=False)
@@ -292,8 +296,9 @@ def main():
     start_time_local = time.time()
     for epoch in range(1, args.epochs + 1):
 
-        if epoch in [int(args.epochs * 0.33), int(args.epochs * 0.66)] and args.loss != 'ce':
-            optimizer.update_regularizer(decay_factor=5)
+        # if epoch in [int(args.epochs * 0.33), int(args.epochs * 0.66)] and args.loss != 'ce':
+        if epoch == 31:
+            optimizer.update_regularizer(decay_factor=100)
 
         epoch_loss = train(model, device, train_loader, optimizer, dataset.task_type, grad_clip=0.)
         # epoch_loss = 1
@@ -302,6 +307,7 @@ def main():
         train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
         # train_result = 0.99
         valid_result = eval(model, device, valid_loader, evaluator)[dataset.eval_metric]
+        # valid_result = 0.5
         test_result = eval(model, device, test_loader, evaluator)[dataset.eval_metric]
 
         print("Epoch:%s, train_auc:%.4f, valid_auc:%.4f, test_auc:%.4f, lr:%.4f, time:%.4f" % (
