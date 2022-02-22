@@ -35,7 +35,7 @@ def get_args():
     parser.add_argument('--margin', type=float, default=1.0)
     parser.add_argument('--loss', type=str, default='auroc', help='')
     parser.add_argument('--data', type=str, default='ogbg-molhiv', help='location of the data corpus')
-    parser.add_argument('--model_save_path', type=str, default='model_0206_gamma_500',
+    parser.add_argument('--model_save_path', type=str, default='model_finetune',
                         help='the directory used to save models')
     parser.add_argument('--add_virtual_node', action='store_true')
     parser.add_argument('--arch_filename', type=str, default='', help='given the location of searched res')
@@ -271,16 +271,12 @@ def main():
     start_time_local = time.time()
     for epoch in range(1, args.epochs + 1):
 
-        if epoch in [int(args.epochs * 0.33), int(args.epochs * 0.66)]:
-            if not args.cos_lr:
-                optimizer.update_regularizer(decay_factor=2)
 
 
 
         epoch_loss = train(model, device, train_loader, optimizer, dataset.task_type, scheduler, grad_clip=0.)
 
-        if args.cos_lr:
-            scheduler.step()
+        scheduler.step()
 
         # logging.info('Evaluating...')
         train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
