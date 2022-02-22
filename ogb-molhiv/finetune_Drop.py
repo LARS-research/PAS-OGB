@@ -20,7 +20,7 @@ from libauc.losses import AUCMLoss
 from libauc.optimizers import PESG
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from model_drop import NetworkGNN as Network
-from DeeperGCN_with_HIG.utils.ckpt_util import save_ckpt
+from DeeperGCN.utils.ckpt_util import save_ckpt
 from thop import profile
 
 graph_classification_dataset=['DD', 'MUTAG', 'PROTEINS', 'NCI1', 'NCI109','IMDB-BINARY', 'REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI','COLORS-3', 'COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba']
