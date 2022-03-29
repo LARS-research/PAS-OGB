@@ -74,6 +74,20 @@ python python -u pcba_finetune.py --data ogbg-molpcba --gpu 4 --dropout 0.2 --lr
 ```
 
 
+### Training Process for ogbg-ppa
+
+ 1. Search Architecture
+```
+python model_search.py --gpu 0 --num_layers 3 --epochs 5 --data ogbg-ppa
+--remove_pooling True
+```
+2. Finetune the model.
+
+```
+python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layers 3 --epochs 200 --hidden_size 512 --arch_filename ./exp_res/ogbg-ppa-searched_res-20220217-214538-eps0.0-reg1e-05.txt
+```
+
+
 ### Cite
 Please kindly cite our paper if you use this code:
 ```
