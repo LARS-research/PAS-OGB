@@ -30,19 +30,19 @@ from torch_geometric.utils import add_self_loops
 from sklearn.model_selection import StratifiedKFold
 from logging_util import init_logger
 from sklearn.metrics import f1_score
-graph_classification_dataset=['DD','MUTAG','PROTEINS','NCI1','NCI109','IMDB-BINARY','REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI', 'COLORS-3','COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba']
+graph_classification_dataset=['DD','MUTAG','PROTEINS','NCI1','NCI109','IMDB-BINARY','REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI', 'COLORS-3','COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba', 'ogbg-ppa']
 node_classification_dataset = ['Cora','CiteSeer','PubMed','Amazon_Computers','Coauthor_CS','Coauthor_Physics','Amazon_Photo',
                                'small_Reddit','small_arxiv','Reddit','ogbn-arxiv']
 parser = argparse.ArgumentParser("sane-train-search")
-parser.add_argument('--data', type=str, default='ogbg-molhiv', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='ogbg-ppa', help='location of the data corpus')
 parser.add_argument('--record_time', action='store_true', default=False, help='used for run_with_record_time func')
-parser.add_argument('--batch_size', type=int, default=512, help='batch size')
+parser.add_argument('--batch_size', type=int, default=16, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.0025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.0001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=1e-5, help='weight decay')
-parser.add_argument('--gpu', type=int, default=1, help='gpu device id')
-parser.add_argument('--epochs', type=int, default=100, help='num of training epochs')
+parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
+parser.add_argument('--epochs', type=int, default=5, help='num of training epochs')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
 parser.add_argument('--save', type=str, default='EXP', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
@@ -55,11 +55,11 @@ parser.add_argument('--arch_learning_rate_min', type=float, default=0.005, help=
 # parser.add_argument('--cos_arch_lr', action='store_true', default=False, help='lr decay for learning rate')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 parser.add_argument('--with_conv_linear', type=bool, default=False, help=' in NAMixOp with linear op')
-parser.add_argument('--num_layers', type=int, default=14, help='num of layers of GNN method.')
+parser.add_argument('--num_layers', type=int, default=5, help='num of layers of GNN method.')
 parser.add_argument('--withoutjk', action='store_true', default=False, help='remove la aggregtor')
 parser.add_argument('--alpha_mode', type=str, default='train_loss', help='how to update alpha', choices=['train_loss', 'valid_loss', 'valid_acc'])
 parser.add_argument('--search_act', action='store_true', default=False, help='search act in supernet.')
-parser.add_argument('--hidden_size',  type=int, default=256, help='default hidden_size in supernet')
+parser.add_argument('--hidden_size',  type=int, default=128, help='default hidden_size in supernet')
 parser.add_argument('--BN',  type=int, default=256, help='default hidden_size in supernet')
 parser.add_argument('--num_sampled_archs',  type=int, default=1, help='sample archs from supernet')
 
@@ -76,7 +76,7 @@ parser.add_argument('--lamda', type=int, default=2, help='sample lamda architect
 parser.add_argument('--adapt_delta', action='store_true', default=False, help='adaptive delta in update theta.')
 parser.add_argument('--delta', type=float, default=1.0, help='a fixed delta in update theta.')
 parser.add_argument('--w_update_epoch', type=int, default=1, help='epoches in update W')
-parser.add_argument('--model_type', type=str, default='snas', help='how to update alpha', choices=['darts', 'snas'])
+parser.add_argument('--model_type', type=str, default='darts', help='how to update alpha', choices=['darts', 'snas'])
 
 args = parser.parse_args()
 args.graph_classification_dataset = graph_classification_dataset
@@ -164,11 +164,13 @@ def main():
     if args.data =='PPI' or args.data == 'ogbg-molhiv':
         criterion = nn.BCEWithLogitsLoss()
         num_classes = 1
+    elif args.data == 'ogbg-ppa':
+        criterion = torch.nn.CrossEntropyLoss()
     else:
         criterion = F.nll_loss
 
-    model = Network(args.data, criterion, num_features, num_classes, hidden_size, epsilon=args.epsilon,
-                    args=args, with_conv_linear=args.with_conv_linear, num_layers=args.num_layers, num_nodes=num_nodes)
+    model = Network(args.data, criterion, num_features, data[0].num_classes, hidden_size, epsilon=args.epsilon,
+                    args=args, with_conv_linear=args.with_conv_linear, num_layers=args.num_layers)
     print('with_conv_linear: ', args.with_conv_linear)
     model = model.cuda()
 
@@ -197,10 +199,7 @@ def main():
         t1 = time.time()
         lr = scheduler.get_lr()[0]
         arch_lr = scheduler_arch.get_lr()[0]
-        if epoch % 1 == 0:
-            logging.info('epoch %d lr %e', epoch, lr)
-            genotype = model.genotype()
-            logging.info('genotype = %s', genotype)
+
 
         train_acc, train_obj = train_graph(data, model, criterion, optimizer, arch_optimizer, lr, arch_lr)
         scheduler.step()
@@ -208,17 +207,22 @@ def main():
         # valid_acc, valid_obj = infer(data, model, criterion, test=False)
         # test_acc, test_obj = infer(data, model, criterion, test=True)
         valid_obj, valid_acc, test_obj, test_acc = infer_graph(data, model, criterion)
-        s_valid_obj, s_valid_acc, s_test_obj, s_test_acc = infer_graph(data, model, criterion, mode='evaluate_single_path')
+        # s_valid_obj, s_valid_acc, s_test_obj, s_test_acc = infer_graph(data, model, criterion, mode='evaluate_single_path')
         scheduler_arch.step()
+
+        if epoch % 1 == 0:
+            logging.info('epoch %d lr %e', epoch, lr)
+            genotype = model.genotype()
+            logging.info('genotype = %s', genotype)
 
         if epoch % 1 == 0:
             logging.info('epoch=%s, train_acc=%f, train_loss=%f, valid_acc=%f, valid_loss=%f, test_acc=%f, test_loss=%f, explore_num=%s', epoch, train_acc, train_obj, valid_acc, valid_obj, test_acc, test_obj, model.explore_num)
             print('epoch={}, train_acc={:.04f}, train_loss={:.04f},valid_acc={:.04f}, valid_loss={:.04f},test_acc={:.04f},test_loss={:.04f}, explore_num={}'.
                   format(epoch, train_acc, train_obj, valid_acc, valid_obj, test_acc, test_obj, model.explore_num))
 
-            logging.info('single path evaluate. epoch=%s, valid_acc=%f, valid_loss=%f, test_acc=%f, test_loss=%f, explore_num=%s', epoch, s_valid_acc, s_valid_obj, s_test_acc, s_test_obj, model.explore_num)
-            print('single_path evaluation.  epoch={}, valid_acc={:.04f}, valid_loss={:.04f},test_acc={:.04f},test_loss={:.04f}, explore_num={}'.
-                  format(epoch, s_valid_acc, s_valid_obj, s_test_acc, s_test_obj, model.explore_num))
+            # logging.info('single path evaluate. epoch=%s, valid_acc=%f, valid_loss=%f, test_acc=%f, test_loss=%f, explore_num=%s', epoch, s_valid_acc, s_valid_obj, s_test_acc, s_test_obj, model.explore_num)
+            # print('single_path evaluation.  epoch={}, valid_acc={:.04f}, valid_loss={:.04f},test_acc={:.04f},test_loss={:.04f}, explore_num={}'.
+            #       format(epoch, s_valid_acc, s_valid_obj, s_test_acc, s_test_obj, model.explore_num))
         utils.save(model, os.path.join(args.save, 'weights.pt'))
         c_val_acc, c_test_acc = 0, 0
         if args.record_time:
@@ -284,7 +288,9 @@ def train_graph(data, model, criterion, model_optimizer, arch_optimizer, lr, arc
 
             else:
                 # print(train_data.y.view(-1))
-                error_loss = criterion(output, train_data.y.view(-1))
+                print(output.shape)
+                print(train_data.y.view(-1).shape)
+                error_loss = criterion(output.to(torch.float32), train_data.y.view(-1))
 
             print('loss:{:.08f}'.format(error_loss.item()))
 
@@ -342,7 +348,7 @@ def infer_graph(data_, model, criterion, mode='none'):
         else:
             loss = criterion(logits, target.view(-1))
         valid_loss += loss.item() * num_graphs(val_data)
-        valid_acc += logits.max(1)[1].eq(target[:, 0].unsqueeze(dim=1)[is_labeled].view(-1)).sum().item()
+        valid_acc += logits.max(1)[1].eq(target[:, 0].unsqueeze(dim=1).view(-1)).sum().item()
     for test_data in data_[6]:
         test_data = test_data.to(device)
         with torch.no_grad():
@@ -358,7 +364,7 @@ def infer_graph(data_, model, criterion, mode='none'):
         else:
             loss = criterion(logits, target.view(-1))
         test_loss += loss.item() * num_graphs(test_data)
-        test_acc += logits.max(1)[1].eq(target[:, 0].unsqueeze(dim=1)[is_labeled].view(-1)).sum().item()
+        test_acc += logits.max(1)[1].eq(target[:, 0].unsqueeze(dim=1).view(-1)).sum().item()
     return valid_loss/len(data_[5].dataset), valid_acc/len(data_[5].dataset), \
            test_loss/len(data_[6].dataset), test_acc/len(data_[6].dataset)
 

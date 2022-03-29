@@ -11,38 +11,35 @@ from torch_geometric.loader import DataLoader
 import hyperopt
 from hyperopt import fmin, tpe, hp, Trials, partial, STATUS_OK
 import random
-from logging_util import init_logger
-from train4tune import main
-from test4tune import main as test_main
+
 import torch
 import statistics
-from libauc.losses import AUCMLoss
-from libauc.optimizers import PESG
+from tqdm import tqdm
+
 from ogb.graphproppred import PygGraphPropPredDataset, Evaluator
 from model import NetworkGNN as Network
 from DeeperGCN_with_HIG.utils.ckpt_util import save_ckpt
+from utils.util import flag, warm_up_lr
 
-graph_classification_dataset=['DD', 'MUTAG', 'PROTEINS', 'NCI1', 'NCI109','IMDB-BINARY', 'REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI','COLORS-3', 'COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba']
+graph_classification_dataset=['DD', 'MUTAG', 'PROTEINS', 'NCI1', 'NCI109','IMDB-BINARY', 'REDDIT-BINARY', 'BZR', 'COX2', 'IMDB-MULTI','COLORS-3', 'COLLAB', 'REDDIT-MULTI-5K', 'ogbg-molhiv', 'ogbg-molpcba', 'ogbg-ppa']
 node_classification_dataset = ['Cora', 'CiteSeer', 'PubMed', 'Amazon_Computers', 'Coauthor_CS', 'Coauthor_Physics', 'Amazon_Photo']
 
 def get_args():
     parser = argparse.ArgumentParser("sane")
     parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
-    parser.add_argument('--num_workers', type=int, default=8,
+    parser.add_argument('--num_workers', type=int, default=0,
                         help='number of workers (default: 0)')
     parser.add_argument('--pretrained', action='store_true', default=False)
-    parser.add_argument('--dataset', type=str, default="ogbg-molhiv",
+    parser.add_argument('--dataset', type=str, default="ogbg-ppa",
                         help='dataset name (default: ogbg-molhiv)')
-    parser.add_argument('--gamma', type=float, default=500)
-    parser.add_argument('--margin', type=float, default=1.0)
     parser.add_argument('--loss', type=str, default='auroc', help='')
-    parser.add_argument('--data', type=str, default='ogbg-molhiv', help='location of the data corpus')
-    parser.add_argument('--model_save_path', type=str, default='model_0206_gamma_500',
+    parser.add_argument('--data', type=str, default='ogbg-ppa', help='location of the data corpus')
+    parser.add_argument('--model_save_path', type=str, default='model_finetune',
                         help='the directory used to save models')
     parser.add_argument('--add_virtual_node', action='store_true')
     parser.add_argument('--arch_filename', type=str, default='', help='given the location of searched res')
     parser.add_argument('--arch', type=str, default='', help='given the specific of searched res')
-    parser.add_argument('--num_layers', type=int, default=14, help='num of GNN layers in SANE')
+    parser.add_argument('--num_layers', type=int, default=5, help='num of GNN layers in SANE')
     parser.add_argument('--tune_topK', action='store_true', default=False, help='whether to tune topK archs')
     parser.add_argument('--use_hyperopt', action='store_true', default=False, help='whether to tune topK archs')
     parser.add_argument('--record_time', action='store_true', default=False, help='whether to tune topK archs')
@@ -50,25 +47,28 @@ def get_args():
     parser.add_argument('--with_layernorm', action='store_true', default=False, help='whether to use layer norm')
     parser.add_argument('--with_layernorm_learnable', action='store_true', default=False, help='use the learnable layer norm')
     parser.add_argument('--BN',  action='store_true', default=True,  help='use BN.')
-    parser.add_argument('--flag', action='store_true', default=False,  help='use flag.')
+    # parser.add_argument('--flag', action='store_true', default=True,  help='use flag.')
+    parser.add_argument('--flag', type=str, default='false')
+
     parser.add_argument('--feature', type=str, default='full',
                         help='two options: full or simple')
     parser.add_argument('--activation', type=str, default='relu')
     parser.add_argument('--optimizer', type=str, default='pesg', help='')
-    parser.add_argument('--weight_decay', type=float, default=1e-5)
+    parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--lr', type=float, default=0.1,
                         help='learning rate set for optimizer.')
     parser.add_argument('--hidden_size', type=int, default=256,
                         help='the dimension of embeddings of nodes and edges')
-    parser.add_argument('--batch_size', type=int, default=512, help='batch size of data.')
+    parser.add_argument('--batch_size', type=int, default=256, help='batch size of data.')
     parser.add_argument('--model', type=str, default='SANE')
-    parser.add_argument('--dropout', type=float, default=0.3)
+    parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--is_mlp', action='store_true', default=False, help='is_mlp')
     parser.add_argument('--ft_weight_decay', action='store_true', default=False, help='with weight decay in finetune stage.')
     parser.add_argument('--ft_dropout', action='store_true', default=False, help='with dropout in finetune stage')
     parser.add_argument('--ft_mode', type=str, default='811', choices=['811', '622', '10fold'], help='data split function.')
     parser.add_argument('--hyper_epoch', type=int, default=1, help='hyper epoch in hyperopt.')
     parser.add_argument('--epochs', type=int, default=300, help='training epochs for each model')
+    parser.add_argument('--warmup_epochs', type=int, default=20, help='warm_up epochs for each model')
     parser.add_argument('--cos_lr',  action='store_true', default=True,  help='use cos lr.')
     parser.add_argument('--lr_min',  type=float, default=0.005,  help='use cos lr.')
     parser.add_argument('--show_info',  action='store_true', default=True,  help='print training info in each epoch')
@@ -114,7 +114,7 @@ def train(model, device, loader, optimizer, task_type, scheduler, grad_clip=0.):
     model.train()
     iters = len(loader)
 
-    for step, batch in enumerate(loader):
+    for step, batch in enumerate(tqdm(loader, desc="Iteration")):
         batch = batch.to(device)
 
         if batch.x.shape[0] == 1 or batch.batch[-1] == 0:
@@ -122,22 +122,32 @@ def train(model, device, loader, optimizer, task_type, scheduler, grad_clip=0.):
         else:
             optimizer.zero_grad()
             pred = model(batch)
-            pred = torch.sigmoid(pred)
+            # pred = torch.sigmoid(pred)
             is_labeled = batch.y == batch.y
-            loss = aucm_criterion(pred.to(torch.float32)[is_labeled].reshape(-1, 1),
-                                  batch.y.to(torch.float32)[is_labeled].reshape(-1, 1))
-            loss.backward()
 
-            if grad_clip > 0:
-                torch.nn.utils.clip_grad_value_(
-                    model.parameters(),
-                    grad_clip)
+            if args.flag == 'true':
+                forward = lambda perturb: model(batch, perturb).to(torch.float32)[is_labeled]
+                model_forward = (model, forward)
+                y = batch.y.to(torch.float32)[is_labeled]
+                perturb_shape = (batch.x.shape[0], args.hidden_size)
+                loss, _ = flag(model_forward, perturb_shape, y, optimizer, device, multicls_criterion)
 
-            optimizer.step()
-            if args.cos_lr:
-                pass
-                #cos_lr_warmrestarts
-                # scheduler.step(args.epochs + step / iters)
+            else:
+
+                loss = multicls_criterion(pred.to(torch.float32), batch.y.view(-1))
+
+                loss.backward()
+
+                if grad_clip > 0:
+                    torch.nn.utils.clip_grad_value_(
+                        model.parameters(),
+                        grad_clip)
+
+                optimizer.step()
+                if args.cos_lr:
+                    pass
+                    #cos_lr_warmrestarts
+                    # scheduler.step(args.epochs + step / iters)
 
             loss_list.append(loss.item())
     return statistics.mean(loss_list)
@@ -148,16 +158,19 @@ def eval(model, device, loader, evaluator):
     y_true = []
     y_pred = []
 
-    for step, batch in enumerate(loader):
+    for step, batch in enumerate(tqdm(loader, desc="Iteration")):
         batch = batch.to(device)
 
         if batch.x.shape[0] == 1:
             pass
         else:
             pred = model(batch)
-            pred = torch.sigmoid(pred)
-            y_true.append(batch.y[:,0:1].view(pred.shape).detach().cpu()) # remove random forest pred
-            y_pred.append(pred.detach().cpu())
+            # pred = torch.sigmoid(pred)
+            y_true.append(batch.y.view(-1, 1).detach().cpu()) # remove random forest pred
+            y_pred.append(torch.argmax(pred.detach(), dim=1).view(-1, 1).cpu())
+
+
+
 
     y_true = torch.cat(y_true, dim=0).numpy()
     y_pred = torch.cat(y_pred, dim=0).numpy()
@@ -167,11 +180,15 @@ def eval(model, device, loader, evaluator):
 
     return evaluator.eval(input_dict)
 
+def add_zeros(data):
+    data.x = torch.zeros(data.num_nodes, dtype=torch.long)
+    return data
+
 def main():
 
     sub_dir = 'BS_{}-NF_{}'.format(args.batch_size, args.feature)
     set_all_seeds(args.seed)
-    dataset = PygGraphPropPredDataset(name=args.dataset)
+    dataset = PygGraphPropPredDataset(name=args.dataset, root='/data/wangxu/dataset', transform = add_zeros)
 
     args.num_tasks = dataset.num_tasks
     # logging.info('%s' % args)
@@ -196,7 +213,7 @@ def main():
                              num_workers=args.num_workers)
 
     set_all_seeds(args.seed)
-    aucm_criterion.to(device)
+
     lines = open(args.arch_filename, 'r').readlines()
     suffix = args.arch_filename.split('_')[-1][:-4]
     arch_set = set()
@@ -224,31 +241,24 @@ def main():
             traceback.print_exc()
     genotype = args.arch
     # print(genotype)
-    model = Network(genotype, aucm_criterion, args.hidden_size, 1, args.hidden_size,
+
+
+    model = Network(genotype, cls_criterion, args.hidden_size, dataset.num_classes, args.hidden_size,
                     num_layers=args.num_layers, in_dropout=args.dropout,
                     out_dropout=args.dropout,
                     act=args.activation, args=args, is_mlp=args.is_mlp)
     model = model.to(device)
 
-    optimizer = PESG(model,
-                     a=aucm_criterion.a,
-                     b=aucm_criterion.b,
-                     alpha=aucm_criterion.alpha,
-                     lr=args.lr,
-                     gamma=args.gamma,
-                     margin=args.margin,
-                     weight_decay=args.weight_decay)
-
-    # get imbalance ratio from train set
-    args.imratio = float((train_loader.dataset.data.y[:, 0].sum() / train_loader.dataset.data.y[:, 0].shape[0]).numpy())
-    aucm_criterion.p = args.imratio
-    print(aucm_criterion.p)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
+    #                         weight_decay=args.weight_decay)
 
     # cos_lrscheduler
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs),
     #                                                        eta_min=args.lr_min)
 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                           args.epochs - args.warmup_epochs)
 
     # cos_lr_warmrestarts
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=20)
@@ -257,10 +267,10 @@ def main():
     datetime_now = '2022-01-17'
     pretrained_prefix = 'pre_' if args.pretrained else ''
     virtual_node_prefilx = '-vt' if args.add_virtual_node else ''
-    args.configs = '[%s]Train_%s_im_%.4f_rd_%s_%s%s-FP_%s_%s_wd_%s_lr_%s_B_%s_E_%s_%s_%s_g_%s_m_%s' % (
-    datetime_now, args.dataset, args.imratio, args.seed, pretrained_prefix, args.arch,
-    virtual_node_prefilx, args.activation, args.weight_decay, args.lr, args.batch_size, args.epochs, args.loss,
-    args.optimizer, args.gamma, args.margin)
+    args.configs = '[%s]Train_%s_im_rd_%s_%s%s-FP_%s_%s_wd_%s_lr_%s_B_%s_E_%s_%s_%s_' % (
+    datetime_now, args.dataset,  args.seed, pretrained_prefix, args.arch,
+    virtual_node_prefilx, args.activation, args.weight_decay, optimizer.param_groups[0]['lr'], args.batch_size, args.epochs, args.loss,
+    args.optimizer, )
     logging.info(args.save)
     logging.info(args.configs)
 
@@ -273,24 +283,23 @@ def main():
     start_time_local = time.time()
     for epoch in range(1, args.epochs + 1):
 
-        if epoch in [int(args.epochs * 0.33), int(args.epochs * 0.66)]:
-            if not args.cos_lr:
-                optimizer.update_regularizer(decay_factor=2)
-
-
+        if epoch <= args.warmup_epochs:
+            warm_up_lr(epoch, args.warmup_epochs, args.lr, optimizer)
+        if epoch > args.warmup_epochs:
+            scheduler.step()
 
         epoch_loss = train(model, device, train_loader, optimizer, dataset.task_type, scheduler, grad_clip=0.)
 
-        if args.cos_lr:
-            scheduler.step()
+        scheduler.step()
 
         # logging.info('Evaluating...')
-        train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
+        # train_result = eval(model, device, train_loader, evaluator)[dataset.eval_metric]
+        train_result = 1
         valid_result = eval(model, device, valid_loader, evaluator)[dataset.eval_metric]
         test_result = eval(model, device, test_loader, evaluator)[dataset.eval_metric]
 
-        print("Epoch:%s, train_auc:%.4f, valid_auc:%.4f, test_auc:%.4f, lr:%.4f, time:%.4f" % (
-        epoch, train_result, valid_result, test_result, optimizer.lr, time.time() - start_time_local))
+        print("Epoch:%s, epoch_loss:%.4f, train_auc:%.4f, valid_auc:%.4f, test_auc:%.4f, lr:%.4f, time:%.4f" % (
+        epoch, epoch_loss, train_result, valid_result, test_result, optimizer.param_groups[0]['lr'], time.time() - start_time_local))
         start_time_local = time.time()
         # model.print_params(epoch=epoch)
 
@@ -320,5 +329,5 @@ if __name__ == "__main__":
     torch.cuda.set_device(args.gpu)
     cls_criterion = torch.nn.BCEWithLogitsLoss()
     reg_criterion = torch.nn.MSELoss()
-    aucm_criterion = AUCMLoss().to(device)
+    multicls_criterion = torch.nn.CrossEntropyLoss()
     main()
