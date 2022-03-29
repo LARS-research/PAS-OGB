@@ -68,7 +68,7 @@ python pcba_search.py --gpu 0 --num_layers 14 --epochs 50 --data ogbg-molpcba
 2. Finetune the model.
 
 ```
-python python -u pcba_finetune.py --data ogbg-molpcba --gpu 4 --dropout 0.2 --lr 0.1 
+python -u pcba_finetune.py --data ogbg-molpcba --gpu 4 --dropout 0.2 --lr 0.1 
 --batch_size 256 --gamma 700 --epochs 100 --hidden_size 1024 
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
