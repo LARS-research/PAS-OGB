@@ -45,7 +45,7 @@ python random_forest.py
 3. Finetune the model.
 
 ```
-python python -u finetune.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.1 
+python -u finetune.py --data ogbg-molhiv --gpu 0 --dropout 0.2 --lr 0.1 
 --batch_size 256 --gamma 700 --epochs 400 --hidden_size 512 
 --arch_filename ./exp_res/ogbg-molhiv-searched_res-20220120-220405-eps0.0-reg1e-05.txt
 ```
