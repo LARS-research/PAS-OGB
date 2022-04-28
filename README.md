@@ -29,6 +29,9 @@ scikit-learn==0.24.2 ogb>=1.3.2 deep_gcns_torch LibAUC
 |  Dataset   | Method  | Test ACC   | Validation ACC  |Hardware  |
 |  ----  | ----  | ----  | ----  |----  |
 | ogbg-ppa  | PAS | 0.7828 ± 0.0024  | 0.7523 ± 0.0028 | RTX3090 |
+| ogbg-ppa  | PAS+F2GNN(hidden_size 128) | 0.7842 ± 0.0023  | 0.7373 ± 0.0021 | RTX3090 |
+| ogbg-ppa  | PAS+F2GNN(hidden_size 512) | 0.8201 ± 0.0019  | 0.7720 ± 0.0023 | RTX3090 |
+
 
 ### Training Process for ogbg-molhiv
  1. Search Architecture
@@ -72,7 +75,7 @@ python finetune.py --gpu 0 --dropout 0.5 --lr 0.001 --batch_size 100 --num_layer
 ```
 
 
-### Training Process for ogbg-ppa
+### Training Process for ogbg-ppa(PAS)
 
  1. Search Architecture
 ```
@@ -85,6 +88,17 @@ python model_search.py --gpu 0 --num_layers 3 --epochs 5 --data ogbg-ppa
 python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layers 3 --epochs 200 --hidden_size 512 --arch_filename ./exp_res/ogbg-ppa-searched_res-20220217-214538-eps0.0-reg1e-05.txt
 ```
 
+### Training Process for ogbg-ppa(PAS+F2GNN)
+
+ 1. Search Architecture
+```
+python model_search.py --gpu 0 --num_layers 5 --epochs 10 --batch_size 24 --hidden_size 64 --data ogbg-ppa
+--remove_pooling True
+```
+2. Finetune the model.
+
+```
+python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layers 5 --epochs 200 --warmup_epochs 20 --hidden_size 512 --arch_filename ./exp_res/ogbg-ppa-searched_res-20220415-112841-eps0.0-reg1e-05.tx
 
 ### Cite
 Please kindly cite our paper if you use this code:
