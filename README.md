@@ -99,6 +99,7 @@ python model_search.py --gpu 0 --num_layers 5 --epochs 10 --batch_size 24 --hidd
 
 ```
 python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layers 5 --epochs 200 --warmup_epochs 20 --hidden_size 512 --arch_filename ./exp_res/ogbg-ppa-searched_res-20220415-112841-eps0.0-reg1e-05.tx
+```
 
 ### Cite
 Please kindly cite our paper if you use this code:
