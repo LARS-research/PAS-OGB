@@ -1,0 +1,1 @@
+seed=777,genotype=true||false||true||false||false||true||false||true||true||true||MAX||MAX||MAX||CONCAT||EXPC||EXPC||EXPC||leaky_relu||relu||sigmoid||set2set||global_att||global_max||global_att||l_lstm,saved_dir=logs/search-ogbg-ppa-20220408-133417

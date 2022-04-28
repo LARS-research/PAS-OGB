@@ -1,0 +1,14 @@
+rf_pred_auc_0.8395_0.8162_RS_6.npy
+The number of layers 14 Aggr aggregation method softmax block: res+
+LN/BN->ReLU->GraphConv->Res
+#Params: 1019408
+0.03508643956524911
+12/02 03:53:41 PM EXP-B_res+-C_gen-L_14-F_256-DP_0.0-GA_softmax-T_1.0-LT_True-P_1.0-LP_False-Y_0.0-LY_False-MN_False-LS_False-RS_0
+12/02 03:53:41 PM [2021-12-02]Train_ogbg-molhiv_im_0.0351_rd_0_deepgcn-FP__relu_wd_1e-05_lr_0.01_B_512_E_100_auroc_pesg_g_300.0_m_1.0
+Using backend: pytorch
+/root/anaconda3/lib/python3.8/site-packages/torch_geometric/deprecation.py:13: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  warnings.warn(out)
+12/02 03:58:43 PM Epoch:1, train_auc:0.9728, valid_auc:0.8198, test_auc:0.7897, lr:0.0100, time:301.8586
+12/02 04:03:43 PM Epoch:2, train_auc:0.9748, valid_auc:0.8199, test_auc:0.7915, lr:0.0100, time:299.8320
+12/02 04:08:40 PM Epoch:3, train_auc:0.9761, valid_auc:0.8153, test_auc:0.7942, lr:0.0100, time:296.9853
+12/02 04:14:11 PM Epoch:4, train_auc:0.9781, valid_auc:0.8098, test_auc:0.7929, lr:0.0100, time:331.2382

@@ -1,0 +1,1 @@
+seed=6065,genotype=true||true||false||false||true||true||false||true||true||true||true||true||true||true||true||true||true||false||true||true||true||SUM||MAX||SUM||SUM||SUM||MAX||EXPC||gin_mol||gcn_mol||gcn_mol||gin_mol||sigmoid||relu||relu6||elu||sigmoid||global_sum||set2set||global_mean||global_max||global_sort||none||l_mean,saved_dir=logs/search-ogbg-ppa-20220414-221954

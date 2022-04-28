@@ -1,0 +1,1 @@
+eed=9879,genotype=true||false||true||false||false||true||false||true||true||true||SUM||SUM||SUM||CONCAT||EXPC||EXPC||EXPC||EXPC||EXPC||sigmoid||tanh||elu||leaky_relu||leaky_relu||none||global_sum||none||global_sort||global_sum||global_sum||l_mean,saved_dir=logs/search-ogbg-ppa-20220327-185321

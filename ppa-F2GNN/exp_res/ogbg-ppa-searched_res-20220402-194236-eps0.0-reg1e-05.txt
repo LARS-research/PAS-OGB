@@ -1,0 +1,1 @@
+seed=166,genotype=true||true||false||true||true||true||true||true||true||true||LSTM||MAX||SUM||MEAN||EXPC||EXPC||EXPC||relu6||tanh||sigmoid||global_sort||set2set||global_att||set2set||l_concat,saved_dir=logs/search-ogbg-ppa-20220402-185339

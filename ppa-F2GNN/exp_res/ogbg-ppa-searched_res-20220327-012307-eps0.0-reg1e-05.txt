@@ -1,0 +1,1 @@
+seed=193,genotype=true||true||true||true||true||true||false||true||true||false||true||false||false||false||false||MEAN||MEAN||CONCAT||MEAN||LSTM||gen||gen||gen||gen||tanh||leaky_relu||elu||relu||global_mean||global_att||global_sum||global_att||set2set||l_concat,saved_dir=logs/search-ogbg-ppa-20220326-231546

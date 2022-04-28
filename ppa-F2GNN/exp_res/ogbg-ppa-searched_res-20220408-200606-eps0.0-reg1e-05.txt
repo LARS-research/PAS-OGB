@@ -1,0 +1,1 @@
+seed=3709,genotype=true||false||false||false||true||false||false||true||true||true||true||true||true||true||true||MEAN||MAX||CONCAT||CONCAT||SUM||EXPC||EXPC||EXPC||EXPC||sigmoid||elu||elu||tanh||global_sum||global_max||global_sort||global_sort||set2set||l_sum,saved_dir=logs/search-ogbg-ppa-20220408-184211

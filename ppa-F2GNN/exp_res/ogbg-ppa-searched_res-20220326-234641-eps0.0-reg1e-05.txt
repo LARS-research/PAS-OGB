@@ -1,0 +1,1 @@
+seed=7078,genotype=true||true||false||true||true||true||true||true||true||true||true||false||true||true||true||CONCAT||SUM||SUM||SUM||MEAN||gcn_mol||gcn_mol||gcn_mol||gcn_mol||tanh||elu||softplus||relu6||global_att||global_att||global_sort||global_max||global_att||l_sum,saved_dir=logs/search-ogbg-ppa-20220326-220224
