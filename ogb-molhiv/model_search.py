@@ -442,9 +442,7 @@ class Network(nn.Module):
     # else:
     #     x5 = self.layer6(graph_representations, la_alphas[0])
 
-    if self.args.remove_readout:
-        # x5 = self.readout_layers[0](x, batch, None, readout_alphas[0])
-        x5 = self.pool(x, batch)
+    x5 = self.pool(x, batch)
 
     # x5 = F.elu(self.lin_output(x5))
     # x5 = F.elu(self.lin_output(x))

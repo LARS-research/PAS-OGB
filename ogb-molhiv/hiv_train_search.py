@@ -16,6 +16,7 @@ import torch.backends.cudnn as cudnn
 from torch_geometric.data import DataLoader
 from model_search import Network
 from dataset import load_data
+import utils_1
 
 # from genotypes import NA_PRIMITIVES, NA_PRIMITIVES2, SC_PRIMITIVES, LA_PRIMITIVES
 # from parallel_util import MyDataParallel
@@ -55,10 +56,10 @@ parser.add_argument('--alpha_mode', type=str, default='train_loss', help='how to
 parser.add_argument('--search_act', action='store_true', default=False, help='search act in supernet.')
 parser.add_argument('--hidden_size',  type=int, default=256, help='default hidden_size in supernet')
 parser.add_argument('--BN',  type=int, default=256, help='default hidden_size in supernet')
-parser.add_argument('--num_sampled_archs',  type=int, default=3, help='sample archs from supernet')
+parser.add_argument('--num_sampled_archs',  type=int, default=1, help='sample archs from supernet')
 
 ###for ablation stuty
-parser.add_argument('--remove_pooling', action='store_true', default=False, help='remove pooling block.')
+parser.add_argument('--remove_pooling', action='store_true', default=True, help='remove pooling block.')
 parser.add_argument('--remove_readout', action='store_true', default=False, help='exp5, only search the last readout block.')
 parser.add_argument('--remove_jk', action='store_true', default=False, help='remove ensemble block, Graph representation = Z3')
 
@@ -79,9 +80,10 @@ torch.set_printoptions(precision=4)
 def main():
     global device
     device = torch.device('cuda:%d' % args.gpu if torch.cuda.is_available() else 'cpu')
+    print(args.save)
     args.save = 'logs/search-{}'.format(args.save)
     if not os.path.exists(args.save):
-        utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+        utils_1.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
     log_filename = os.path.join(args.save, 'log.txt')
     init_logger('', log_filename, logging.INFO, False)
@@ -148,7 +150,7 @@ def main():
         hidden_size = args.hidden_size
 
     if args.data =='PPI' or args.data == 'ogbg-molhiv':
-        criterion = nn.BCELoss()
+        criterion = nn.BCEWithLogitsLoss()
         num_classes = 1
     else:
         criterion = F.nll_loss
@@ -158,7 +160,7 @@ def main():
     print('with_conv_linear: ', args.with_conv_linear)
     model = model.cuda()
 
-    logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
+    logging.info("param size = %fMB", utils_1.count_parameters_in_MB(model))
 
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -205,7 +207,7 @@ def main():
             logging.info('single path evaluate. epoch=%s, valid_acc=%f, valid_loss=%f, test_acc=%f, test_loss=%f, explore_num=%s', epoch, s_valid_acc['rocauc'], s_valid_obj, s_test_acc['rocauc'], s_test_obj, model.explore_num)
             print('single_path evaluation.  epoch={}, valid_acc={:.04f}, valid_loss={:.04f},test_acc={:.04f},test_loss={:.04f}, explore_num={}'.
                   format(epoch, s_valid_acc['rocauc'], s_valid_obj, s_test_acc['rocauc'], s_test_obj, model.explore_num))
-        utils.save(model, os.path.join(args.save, 'weights.pt'))
+        utils_1.save(model, os.path.join(args.save, 'weights.pt'))
         c_val_acc, c_test_acc = 0, 0
         if args.record_time:
             from fine_tune import tune_arch
@@ -255,10 +257,10 @@ def train_graph(data, model, criterion, model_optimizer, arch_optimizer, lr, arc
             # print('prediction:{}'.format(output[0:5,:]))
             # print('label:{}'.format(train_data.y.view(-1)[0:5]))
             output = output.to(device)
-            accuracy += output.max(1)[1].eq(train_data.y.view(-1)).sum().item()
+            accuracy += output.max(1)[1].eq(train_data.y[:, 0:1].view(-1)).sum().item()
             is_labeled = train_data.y[:, 0] == train_data.y[:, 0]
 
-            y_true.append(train_data.y[is_labeled].detach().cpu())
+            y_true.append(train_data.y[is_labeled, 0:1].detach().cpu())
             y_pred.append(output[is_labeled].detach().cpu())
             #error loss and resource loss
             if args.data =='COLORS-3' :
@@ -266,8 +268,8 @@ def train_graph(data, model, criterion, model_optimizer, arch_optimizer, lr, arc
                 error_loss = criterion(output, train_data.y.long())
 
             elif args.data == 'ogbg-molhiv':
-                error_loss = criterion(output[is_labeled].float(), train_data.y[is_labeled].float())
-
+                error_loss = criterion(output[is_labeled].float(), train_data.y[:,0].unsqueeze(dim=1)[is_labeled].float())
+                
             else:
                 # print(train_data.y.view(-1))
                 error_loss = criterion(output, train_data.y.view(-1))
@@ -304,6 +306,7 @@ def train_graph(data, model, criterion, model_optimizer, arch_optimizer, lr, arc
         #     print('alphas:{}'.format(model.arch_parameters()[i]))
     y_true = torch.cat(y_true, dim=0).numpy()
     y_pred = torch.cat(y_pred, dim=0).numpy()
+
     input_dict = {'y_true': y_true, 'y_pred': y_pred}
     evaluator = Evaluator(args.data)
 
@@ -332,15 +335,15 @@ def infer_graph(data_, model, criterion, mode='none'):
             loss = criterion(logits, target.long())
         elif args.data == 'ogbg-molhiv':
             is_labeled = target[:, 0] == target[:, 0]
-            loss = criterion(logits[is_labeled].float(), target[is_labeled].float())
+            loss = criterion(logits[is_labeled].float(), target[is_labeled, 0:1].float())
         else:
             loss = criterion(logits, target.view(-1))
         valid_loss += loss.item()
 
-        y_val_true.append(target.detach().cpu())
+        y_val_true.append(target[:, 0:1].detach().cpu())
         y_val_pred.append(logits.detach().cpu())
 
-        valid_acc += logits.max(1)[1].eq(target.view(-1)).sum().item()
+        valid_acc += logits.max(1)[1].eq(target[:, 0:1].view(-1)).sum().item()
 
     y_val_true = torch.cat(y_val_true, dim=0).numpy()
     y_val_pred = torch.cat(y_val_pred, dim=0).numpy()
@@ -358,13 +361,13 @@ def infer_graph(data_, model, criterion, mode='none'):
             # loss = (logits-target.long()).pow(2).mean()
         elif args.data == 'ogbg-molhiv':
             is_labeled = target[:, 0] == target[:, 0]
-            loss = criterion(logits[is_labeled].float(), target[is_labeled].float())
+            loss = criterion(logits[is_labeled].float(), target[is_labeled, 0:1].float())
         else:
             loss = criterion(logits, target.view(-1))
         test_loss += loss.item()
-        test_acc += logits.max(1)[1].eq(target.view(-1)).sum().item()
+        test_acc += logits.max(1)[1].eq(target[:, 0:1].view(-1)).sum().item()
 
-        y_test_true.append(target.detach().cpu())
+        y_test_true.append(target[:, 0:1].detach().cpu())
         y_test_pred.append(logits.detach().cpu())
 
     y_test_true = torch.cat(y_test_true, dim=0).numpy()
