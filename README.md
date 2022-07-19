@@ -79,7 +79,7 @@ python finetune.py --gpu 0 --dropout 0.5 --lr 0.001 --batch_size 100 --num_layer
  1. Search Architecture
 ```
 python train_search.py --gpu 0 --agg gcn_mol --num_layers $NUM_LAYERS --temp 0.001 --hidden_size 128 --batch_size 256 --batch_norm True \
-         --arch_learning_rate 0.001 --epochs 10 --learning_rate 0.001 --alpha_mode train
+         --arch_learning_rate 0.001 --epochs 100 --learning_rate 0.001 --alpha_mode train
 ```
 2. Finetune the model.
 
