@@ -74,6 +74,22 @@ python model_search.py --gpu 0 --num_layers 5 --epochs 5 --data ogbg-molpcba
 python finetune.py --gpu 0 --dropout 0.5 --lr 0.001 --batch_size 100 --num_layers 5 --epochs 100 --hidden_size 384  --arch_filename ./exp_res/ogbg-molpcba-searched_res-20220316-235183-eps0.0-reg1e-05.txt
 ```
 
+### Training Process for ogbg-molpcba(PAS+F2GNN)
+
+ 1. Search Architecture
+```
+python train_search.py --gpu 0 --agg gcn_mol --num_layers $NUM_LAYERS --temp 0.001 --hidden_size 128 --batch_size 256 --batch_norm True \
+         --arch_learning_rate 0.001 --epochs 10 --learning_rate 0.001 --alpha_mode train
+```
+2. Finetune the model.
+
+```
+python fine_tune.py --data ogbg-molpcba --gpu 1  --hyper_epoch 1 --num_layers 5    \
+                 --cos_lr --batch_norm True --batch_size 512 --hidden_size 512 --lr 0.001 --min_lr 0.001 \
+                --arch_filename  $FILENAME
+```
+
+
 
 ### Training Process for ogbg-ppa(PAS)
 
@@ -98,7 +114,7 @@ python model_search.py --gpu 0 --num_layers 5 --epochs 10 --batch_size 24 --hidd
 2. Finetune the model.
 
 ```
-python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layers 5 --epochs 200 --warmup_epochs 20 --hidden_size 512 --arch_filename ./exp_res/ogbg-ppa-searched_res-20220415-112841-eps0.0-reg1e-05.tx
+python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layers 5 --epochs 200 --warmup_epochs 20 --hidden_size 512 --arch_filename ./exp_res/ogbg-ppa-searched_res-20220415-112841-eps0.0-reg1e-05.txt
 ```
 
 ### Cite
