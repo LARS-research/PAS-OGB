@@ -65,7 +65,7 @@ python -u finetune_Drop.py --data ogbg-molhiv --gpu 3 --dropout 0.1 --lr 0.005 -
 
  1. Search Architecture
 ```
-python model_search.py --gpu 0 --num_layers 5 --epochs 5 --data ogbg-molpcba
+python train_search.py --gpu 0 --num_layers 5 --epochs 5 --data ogbg-molpcba
 --remove_pooling True
 ```
 2. Finetune the model.
@@ -95,7 +95,7 @@ python fine_tune.py --data ogbg-molpcba --gpu 1  --hyper_epoch 1 --num_layers 5 
 
  1. Search Architecture
 ```
-python model_search.py --gpu 0 --num_layers 3 --epochs 5 --data ogbg-ppa
+python train_search.py --gpu 0 --num_layers 3 --epochs 5 --data ogbg-ppa
 --remove_pooling True
 ```
 2. Finetune the model.
@@ -108,7 +108,7 @@ python finetune.py --gpu 1 --dropout 0.5 --lr 0.0005 --batch_size 24 --num_layer
 
  1. Search Architecture
 ```
-python model_search.py --gpu 0 --num_layers 5 --epochs 10 --batch_size 24 --hidden_size 64 --data ogbg-ppa
+python train_search.py --gpu 0 --num_layers 5 --epochs 10 --batch_size 24 --hidden_size 64 --data ogbg-ppa
 --remove_pooling True
 ```
 2. Finetune the model.
