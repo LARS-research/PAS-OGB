@@ -84,7 +84,7 @@ python train_search.py --gpu 0 --agg gcn_mol --num_layers $NUM_LAYERS --temp 0.0
 2. Finetune the model.
 
 ```
-python fine_tune.py --data ogbg-molpcba --gpu 1  --hyper_epoch 1 --num_layers 5    \
+python fine_tune.py --data ogbg-molpcba --gpu 1  --hyper_epoch 1 --num_layers 5 --epochs 200    \
                  --cos_lr --batch_norm True --batch_size 512 --hidden_size 512 --lr 0.001 --min_lr 0.001 \
                 --arch_filename  $FILENAME
 ```
